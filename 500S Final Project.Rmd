@@ -1,0 +1,342 @@
+---
+title: "Untitled"
+output: pdf_document
+---
+
+```{r}
+# Import dataset
+ag <- read.csv('Training Data for Ag Project.csv', header=T)
+ag.eval <- read.csv('Evaluation dataset for Ag Project.csv', header=T)
+attach(ag)
+```
+
+Descriptive Analytics
+(1)
+```{r}
+# map
+library(maps)
+library(ggmap)
+ag.location = ag[,c(2,5,6)]
+ag.location = aggregate(.~Location, ag.location, mean)
+# View(ag.location)
+```
+
+```{r}
+position = c("Latitude","Longitude")
+km.out=c()
+for (i in 1:100){
+  set.seed(1)
+  km.out = c(km.out, kmeans(ag[,position],i,nstart=20)$tot.withinss)
+}
+
+plot(1:100,km.out)
+
+set.seed(1)
+km.out_result = kmeans(ag[,position],20,nstart=20)
+km.out_result$cluster
+```
+
+```{r}
+km.out_result = kmeans(ag[,position],7,nstart=20)
+plot(ag[,position], col=(km.out_result$cluster+1), main = "K-Means Clustering Results with K = 3", xlab="", ylab="", pch=6,cex=1)
+```
+
+Preprocessing
+```{r}
+MinN = 70
+N = 10000
+limit = 0.025
+
+keepvars = c('Variety','Variety_Yield','Latitude','Longitude','Probability','RelativeMaturity25','Prob_IRR','Temp_08','Temp_09','Median_Temp','Prec_08','Prec_09','Median_Prec','Rad_08','Rad_09','Median_Rad','PH1','AWC1','Clay1','Silt1','Sand1','Sand2','Silt2','Clay2','PH2','CEC')
+
+predictors = c('Latitude','Longitude','Probability','RelativeMaturity25','Prob_IRR','Temp_08','Temp_09','Median_Temp','Prec_08','Prec_09','Median_Prec','Rad_08','Rad_09','Median_Rad','PH1','AWC1','Clay1','Silt1','Sand1','Sand2','Silt2','Clay2','PH2','CEC')
+
+target = c('Variety_Yield')
+
+newdata = ag[keepvars]
+dim(newdata)
+
+newdata = newdata[complete.cases(newdata),]
+dim(newdata)
+newdata[,'Variety'] = as.factor(newdata[,'Variety'])
+
+varietydata = split(newdata,newdata$Variety)
+
+sufdatavarieties = c()
+
+insufdatavarieties = c()
+
+for(i in seq(1,length(unique(newdata$Variety)))){
+  if((dim(varietydata[[i]])[1])>MinN){
+    sufdatavarieties = c(sufdatavarieties, (as.character(varietydata[[i]][1,'Variety'])))
+  }else{
+    insufdatavarieties = c(insufdatavarieties, (as.character(varietydata[[i]][1,'Variety'])))
+  }
+  }
+
+insufvarietydata = data.frame()
+
+for(i in 1:length(insufdatavarieties)){
+  insufvarietydata = rbind(insufvarietydata,newdata[which(newdata$Variety==insufdatavarieties[i]),])
+}
+
+countinsufrows = 0
+
+for(i in 1:length(insufdatavarieties)){
+  countinsufrows = countinsufrows+dim(newdata[which(newdata$Variety==insufdatavarieties[i]),])[1]
+}
+
+countsufrows = 0
+
+for (i in 1:length(sufdatavarieties)) {
+  countsufrows = countsufrows + dim(newdata[which(newdata$Variety == sufdatavarieties[i]),])[1]
+}
+
+sufvarietydata = data.frame()
+
+for (i in 1:length(sufdatavarieties)) {
+  sufvarietydata = rbind(sufvarietydata, newdata[which(newdata$Variety == sufdatavarieties[i]),])
+}
+
+splitdata = split(sufvarietydata, sufvarietydata$Variety)
+
+count = 0
+
+for (i in 1:length(unique(newdata$Variety))) {
+   if(length(splitdata[[i]]$Variety)!=0) {count=count+dim(splitdata[[i]])[1]
+   }
+}
+
+sufvarietydata
+sufdatavarieties
+insufdatavarieties
+```
+
+(3).
+```{r}
+library(dplyr)
+loc_var = data.frame(ag$Variety,ag$Location)
+df_location = as.data.frame(table(ag$Variety,ag$Location))
+df_location
+df_location %>% group_by(df_location$Var2) %>% 
+arrange(df_location,desc(df_location$Freq))
+
+plot(df_location$Var1,df_location$Freq,xlab='Variety',ylab='Frequency')
+plot(df_location$Var2,df_location$Freq,xlab='Location',ylab='Frequency')
+plot(df_location$Var2,df_location$Var1,xlab='Location',ylab='Variety')
+
+map <- qmplot(Longitude, Latitude, data=ag.location,color=I('brown1'),size=I(1.5), alpha=I(0.6),zoom=6)
+
+map + geom_point(data=ag.eval, aes(x=Longitude,y=Latitude),col='blue',size=2)
+```
+
+(4).
+```{r}
+
+loc_prec = data.frame(ag$Location,ag$Median_Prec)
+plot(loc_prec,xlab='Location',ylab='Median Sum of Precipitation')
+
+loc_rad = data.frame(ag$Location,ag$Median_Rad)
+plot(loc_rad,xlab='Location',ylab='Median Sum of Radiation')
+
+loc_temp = data.frame(ag$Location,ag$Median_Temp)
+plot(loc_temp,xlab='Location',ylab='Median Sum of Temperature')
+
+loc_wea1 = data.frame(ag$Location,ag$Weather1)
+plot(loc_wea1,xlab='Location',ylab='Climate Type')
+
+loc_wea2 = data.frame(ag$Location,ag$Weather2)
+plot(loc_wea2,xlab='Location',ylab='Season Type')
+```
+(5).
+```{r}
+library(ggplot2)
+
+ggplot(data=ag, aes(Variety_Yield))+
+         geom_histogram(breaks=seq(0,120,by=5),
+                        col='black',fill='brown1',alpha=0.2)+
+  labs(title='Distribution of Variety Yield',xlab='Variety Yield')
+
+ggplot(data=ag, aes(Commercial_Yield))+
+         geom_histogram(breaks=seq(0,120,by=5),
+                        col='black',fill='brown1',alpha=0.2)+
+  labs(title='Distribution of Commercial Yield',xlab='Commercial Yield')
+
+ggplot(data=ag, aes(Location_Yield))+
+         geom_histogram(breaks=seq(0,120,by=5),
+                        col='black',fill='brown1',alpha=0.2)+
+  labs(title='Distribution of Location Yield',xlab='Location Yield')
+
+ggplot(data=ag, aes(Yield_Difference))+
+         geom_histogram(breaks=seq(0,120,by=5),
+                        col='black',fill='brown1',alpha=0.2)+
+  labs(title='Distribution of Yield Difference',xlab='Yield Difference')
+
+mean(ag$Variety_Yield)
+sd(ag$Variety_Yield)
+```
+
+Predictive Analytics
+```{r}
+# I choose variety_yield for target variable. It is continuous.
+library(MASS)
+library(glmnet)
+library(tree)
+library(randomForest)
+library(gbm)
+library(neuralnet)
+library(nnet)
+library(caret)
+
+set.seed(1)
+
+train = sample(1:nrow(ag),nrow(ag)*0.7)
+
+ag.train = ag[train,]
+
+ag.test = ag[-train,]
+
+variety = c()
+
+yield = c()
+
+soybean = c()
+
+for(i in 1:length(sufdatavarieties)){
+
+  mse = c()
+  
+  pred = c()
+  
+  variety = c(variety, sufdatavarieties[i])
+  
+  data.suf = data.frame()
+  
+  data.suf = rbind(data.suf, sufvarietydata[which(sufvarietydata$Variety==sufdatavarieties[i]),])
+  
+  data.suf = data.suf[,-1]
+  
+  set.seed(1)
+  
+  train = sample(1:nrow(data.suf),nrow(data.suf)*0.7)
+  
+  test.data = data.suf[-train,'Variety_Yield']
+  
+  #Linear regression
+  lm.fit = lm(Variety_Yield~.,data=data.suf[train,])
+  lm.pred = predict(lm.fit,newdata=data.suf[-train,])
+  mse_temp = mean((lm.pred-test.data)^2)
+  mse = c(mse,mse_temp)
+  pred = c(pred,predict(lm.fit,ag.eval))
+  
+  #LASSO
+  model_x = model.matrix(Variety_Yield~.,data=data.suf)[,-1]
+  model_y = data.suf$Variety_Yield
+  lasso.mod = glmnet(model_x[train,],model_y[train],alpha=1)
+  cv.out = cv.glmnet(model_x[train,],model_y[train],alpha=1)
+  bestlam = cv.out$lambda.min
+  lasso.pred = predict(lasso.mod,s=bestlam,model_x[-train,])
+  mse_temp = mean((lasso.pred-model_y[-train])^2)
+  mse = c(mse,mse_temp)
+  pred = c(pred,predict(lasso.mod,s=bestlam,newx=as.matrix(ag.eval[,predictors])))
+  
+  #Regression tree
+  tree.mod = tree(Variety_Yield~.,data=data.suf[train,])
+  tree.pred = predict(tree.mod,newdata=data.suf[-train,])
+  mse_temp = mean((tree.pred-test.data)^2)
+  mse = c(mse,mse_temp)
+  pred = c(pred,predict(tree.mod,ag.eval))
+  
+  #Bagging
+  bag.mod = randomForest(Variety_Yield~.,data=data.suf[train,],mtry=24,importance=TRUE)
+  bag.pred = predict(bag.mod,newdata=data.suf[-train,])
+  mse.temp = mean((bag.pred-test.data)^2)
+  mse = c(mse,mse_temp)
+  pred = c(pred,predict(bag.mod,ag.eval))
+  
+  #Random forest
+  mse_result =rep(NA,15)
+  for(m in 1:15){
+    rf.mod =randomForest(Variety_Yield~.,data=data.suf[train,],mtry=m,importance=T)
+    rf.pred =predict(rf.mod, newdata=data.suf[-train,])
+    mse_result[m] =mean((rf.pred-test.data)^2)}
+  mse_temp = min(mse_result)
+  mse = c(mse,mse_temp)
+  pred = c(pred,predict(rf.mod,ag.eval))
+  
+  #Boosted trees
+  MSE_result =rep(NA,10)
+  for(i in 1:10) {
+  set.seed(1)
+  boost.mod =gbm(Variety_Yield~.,data=data.suf[train,],distribution = "gaussian",n.trees = 5000,interaction.depth = 5,shrinkage = i/10)
+  boost.mod$nTrain
+  boost.mod$bag.fraction
+  boost.mod$n.minobsinnode
+  boost.pred =predict(boost.mod,newdata = data.suf[-train,],n.trees = 5000)
+  MSE_result[i] =mean((boost.pred-test.data)^2)}
+  mse_temp = min(MSE_result)
+  mse = c(mse,mse_temp)
+  pred = c(pred,predict(boost.mod,ag.eval,n.trees=5000))
+
+  #Neural network
+  max_yield = range(data.suf['Variety_Yield'])[2]
+  min_yield = range(data.suf['Variety_Yield'])[1]
+  
+  norm.values = preProcess(data.suf,method='range')
+  
+  norm.data = predict(norm.values,data.suf)
+  
+  nn.mod = neuralnet(Variety_Yield~.,data=norm.data[train,],linear.output=F,hidden=9)
+  
+  nn.pred = neuralnet::compute(nn.mod,subset(data.suf[-train,]))
+  
+  nn.pred.orig = nn.pred$net.result*(max_yield-min_yield)+min_yield
+  mse_temp = mean((nn.pred.orig-test.data)^2)
+  mse = c(mse,mse_temp)
+  pred = c(pred,predict(nn.mod,ag.eval)*(max_yield-min_yield)+min_yield)
+  
+  #variety = c(variety, sufdatavarieties[i])
+  yield = c(yield,pred[which.min(mse)])
+}
+
+best_yield = pred[which.min(mse)]
+insuf_yield = rep(best_yield,length(insufdatavarieties))
+insuf_data = data.frame(insufdatavarieties,insuf_yield)
+
+soybean = data.frame(variety,yield)
+soybean = soybean[order(soybean[,'yield'],decreasing=T),]
+```
+```{r}
+mse
+pred
+models = c('Linear Regression','LASSO','Regression Tree','Bagging','Random Forest','Boosted trees','Neural network')
+model_sample = data.frame(models,mse,pred)
+insuf_data
+soybean
+variety
+inf = soybean[-65,2]
+mean(inf)
+```
+
+Prescriptive Analytics
+```{r}
+v32 = ag[ag$Variety=='V32',c(2,7)]
+v194 =ag[ag$Variety=='V194',c(2,7)]
+v98 =ag[ag$Variety=='V98',c(2,7)]
+v181 =ag[ag$Variety=='V181',c(2,7)]
+v101 =ag[ag$Variety=='V101',c(2,7)]
+
+v32 %>% group_by(v32$Location) 
+v194 %>% group_by(v194$Location) 
+v98 %>% group_by(v98$Location) 
+v181 %>% group_by(v181$Location) 
+v101 %>% group_by(v101$Location) 
+
+plot(v32$Location,v32$Freq, xlab='Frequency of V32',ylab='Location')
+plot(v194$Location,v194$Freq, xlab='Frequency of V194',ylab='Location')
+plot(v98$Location,v98$Freq, xlab='Frequency of V98',ylab='Location')
+plot(v181$Location,v181$Freq, xlab='Frequency of V181',ylab='Location')
+plot(v101$Location,v101$Freq, xlab='Frequency of V101',ylab='Location')
+
+```
+```
